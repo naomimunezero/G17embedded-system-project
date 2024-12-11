@@ -1,0 +1,63 @@
+#include <EEPROM.h>  // Include the EEPROM library
+
+// Define the RX pin for receiving data from B1 (UART)
+#define RX_PIN 0  // Pin 0 for UART RX
+
+// Define the LED pins for feedback (Red, Blue, Green)
+#define RED_LED_PIN 8
+#define GREEN_LED_PIN 9
+#define BLUE_LED_PIN 10
+
+// EEPROM address tracker
+int eepromAddress = 0;  // Starting address in EEPROM
+
+void setup() {
+  // Set LED pins as outputs using register manipulation
+  DDRB |= (1 << DDB0);  // Set RED_LED_PIN (pin 8) as output
+  DDRB |= (1 << DDB1);  // Set GREEN_LED_PIN (pin 9) as output
+  DDRB |= (1 << DDB2);  // Set BLUE_LED_PIN (pin 10) as output
+
+  // Start serial communication (9600 baud rate)
+  Serial.begin(9600);
+
+  // Print a message to indicate the system has started
+  Serial.println("B2 Ready. Waiting for data...");
+}
+
+void loop() {
+  // Check if data is available from B1
+  if (Serial.available() > 0) {
+    int sensorValue = Serial.parseInt();  // Read the sensor data from B1
+
+    // Store the value in EEPROM if space is available
+    if (eepromAddress < EEPROM.length() - sizeof(sensorValue)) {
+      EEPROM.put(eepromAddress, sensorValue);  // Write the sensor value to EEPROM
+      eepromAddress += sizeof(sensorValue);   // Move to the next EEPROM address
+      Serial.print("Stored in EEPROM at address: ");
+      Serial.println(eepromAddress - sizeof(sensorValue));
+    } else {
+      Serial.println("EEPROM is full! Unable to store more data.");
+    }
+
+    // Control LEDs based on moisture level
+    if (sensorValue > 600) {  // Dry soil
+      PORTB |= (1 << PORTB0);  // Turn on RED LED
+      PORTB &= ~(1 << PORTB1); // Turn off GREEN LED
+      PORTB &= ~(1 << PORTB2); // Turn off BLUE LED
+    } else if (sensorValue >= 400 && sensorValue < 600) {  // Medium moisture
+      PORTB &= ~(1 << PORTB0); // Turn off RED LED
+      PORTB &= ~(1 << PORTB1); // Turn off GREEN LED
+      PORTB |= (1 << PORTB2);  // Turn on BLUE LED
+    } else {  // Wet soil
+      PORTB &= ~(1 << PORTB0); // Turn off RED LED
+      PORTB |= (1 << PORTB1);  // Turn on GREEN LED
+      PORTB &= ~(1 << PORTB2); // Turn off BLUE LED
+    }
+
+    // Print the received value to the Serial Monitor (for debugging)
+    Serial.print("Received Value: ");
+    Serial.println(sensorValue);
+  }
+
+  delay(1000);  // Delay before the next reading
+}
